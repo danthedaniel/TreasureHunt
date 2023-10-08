@@ -2,6 +2,11 @@
 .idea/
 .vscode/
 
+test_server/*
+!test_server/start.sh
+!test_server/server.properties
+!test_server/eula.txt
+
 *.iml
 *.ipr
 *.iws

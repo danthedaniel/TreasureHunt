@@ -9,10 +9,20 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class OpenAIClient {
-    private static final String OPENAI_KEY = "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
     private static final String API_BASE = "https://api.openai.com/v1";
     private static final String MODEL_NAME = "gpt-3.5-turbo";
 
+    private static String OPENAI_KEY = "";
+
+    public static void setApiKey(String apiKey) {
+        OPENAI_KEY = apiKey;
+    }
+
+    /**
+     * Uses a large language model to complete the given prompt.
+     * 
+     * @throws IOException
+     */
     public static String completion(String prompt) throws IOException {
         URL url = new URL(API_BASE + "/chat/completions");
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -35,6 +45,7 @@ public class OpenAIClient {
         return jsonResponse.choices.get(0).message.content;
     }
 
+    @SuppressWarnings("unused")
     private static class Request {
         public String model;
         public List<Message> messages;
@@ -45,6 +56,7 @@ public class OpenAIClient {
         }
     }
 
+    @SuppressWarnings("unused")
     private static class Message {
         public String role;
         public String content;

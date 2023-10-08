@@ -8,7 +8,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public class TreasureHunt extends JavaPlugin implements Listener {
-    private TreasureHuntGame game;
+    private @Nullable TreasureHuntGame game;
     private @Nullable Integer tickTaskId;
 
     @Override
@@ -16,9 +16,22 @@ public class TreasureHunt extends JavaPlugin implements Listener {
         PluginManager pm = this.getServer().getPluginManager();
         pm.registerEvents(this, this);
 
+        // Set OpenAI key
+        String apiKey = this.getConfig().getString("openai_key");
+        if (apiKey == null || apiKey.isEmpty()) {
+            throw new RuntimeException("OpenAI key is not set!");
+        }
+        OpenAIClient.setApiKey(apiKey);
+
+        // Register command
         TreasureHuntCommand command = new TreasureHuntCommand(this);
         this.getCommand("treasurehunt").setExecutor(command);
         this.getCommand("treasurehunt").setTabCompleter(command);
+
+        // Add config value for OpenAI key
+        this.getConfig().addDefault("openai_key", "");
+        this.getConfig().options().copyDefaults(true);
+        this.saveConfig();
 
         registerTickHandler();
     }
@@ -36,7 +49,7 @@ public class TreasureHunt extends JavaPlugin implements Listener {
         this.game = null;
     }
 
-    public TreasureHuntGame getGame() {
+    public @Nullable TreasureHuntGame getGame() {
         return this.game;
     }
 
@@ -45,14 +58,9 @@ public class TreasureHunt extends JavaPlugin implements Listener {
             throw new IllegalStateException("Tick handler is already registered!");
         }
 
+        long tickDelay = 10l;
         BukkitScheduler scheduler = this.getServer().getScheduler();
-        TreasureHunt plugin = this;
-        this.tickTaskId = scheduler.scheduleSyncRepeatingTask(this,
-                new Runnable() {
-                    public void run() {
-                        plugin.onTick();
-                    }
-                }, 1l, 1l);
+        this.tickTaskId = scheduler.scheduleSyncRepeatingTask(this, () -> this.onTick(), tickDelay, tickDelay);
     }
 
     private void clearTickHandler() {
@@ -73,7 +81,7 @@ public class TreasureHunt extends JavaPlugin implements Listener {
 
         switch (this.game.getState()) {
             case COMPLETED:
-            case FAILED:
+            case ERROR:
                 this.clearGame();
                 break;
             default:

@@ -1,9 +1,7 @@
 package com.danangell.treasurehunt;
 
-import org.bukkit.entity.Player;
-
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Set;
@@ -19,9 +17,9 @@ import org.bukkit.block.BlockState;
 import org.bukkit.block.Chest;
 import org.bukkit.block.Lectern;
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BookMeta;
-import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitScheduler;
 import org.jetbrains.annotations.Nullable;
 
@@ -31,6 +29,9 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 
 public class TreasureHuntGame {
+    private static final int TICKS_PER_SECOND = 20;
+    private static final int TREASURE_HUNT_MINUTES = 10;
+
     private static final int LECTERN_MAX_DIST = 5000;
     private static final int LECTERN_DEAD_ZONE = 1000;
     private static final int LECTERN_MIN_HEIGHT = 60;
@@ -38,12 +39,12 @@ public class TreasureHuntGame {
 
     private static final int TREASURE_MIN_HEIGHT = -50;
     private static final int TREASURE_MAX_HEIGHT = 70;
-    private static final int TREASURE_LECTERN_MIN_RADIUS = 100;
-    private static final int TREASURE_LECTERN_MAX_RADIUS = 500;
+    private static final int TREASURE_LECTERN_MIN_RADIUS = 200;
+    private static final int TREASURE_LECTERN_MAX_RADIUS = 400;
 
-    private static final int TREASURE_HUNT_DURATION = 2 * 60 * 1000; // 10 minutes
+    private static final int PLACE_ATTEMPTS = 5;
 
-    private static final List<ItemStack> TREASURE_ITEMS = Arrays.asList(
+    private static final List<ItemStack> TREASURE_ITEMS = List.of(
             new ItemStack(Material.ELYTRA, 1),
             new ItemStack(Material.ELYTRA, 1),
             new ItemStack(Material.ELYTRA, 1),
@@ -77,7 +78,11 @@ public class TreasureHuntGame {
     private @Nullable ItemStack treasure;
     private @Nullable String bookContents;
 
-    public TreasureHuntGame(CommandSender sender, TreasureHunt plugin, World world) {
+    private List<Integer> scheduledTaskIds = new ArrayList<>();
+
+    public TreasureHuntGame(
+            CommandSender sender, TreasureHunt plugin,
+            World world) {
         this.sender = sender;
         this.plugin = plugin;
         this.state = TreasureHuntState.NOT_STARTED;
@@ -111,22 +116,31 @@ public class TreasureHuntGame {
     }
 
     public void init() throws TreasureHuntException {
-        this.lecturnSpot = findTreasureSpot(randomLecturnChunk(), LECTERN_MIN_HEIGHT, LECTERN_MAX_HEIGHT);
+        for (int attempt = 0; attempt < PLACE_ATTEMPTS; attempt++) {
+            Chunk lecturnChunk = randomLecturnChunk();
+            this.lecturnSpot = findTreasureSpot(lecturnChunk, LECTERN_MIN_HEIGHT, LECTERN_MAX_HEIGHT);
+            if (this.lecturnSpot != null) {
+                this.plugin.getLogger().info("Placing lecturn at (" + this.lecturnSpot.getX() + ", "
+                        + this.lecturnSpot.getY() + ", " + this.lecturnSpot.getZ() + ")");
+                break;
+            }
+        }
         if (this.lecturnSpot == null) {
             throw new TreasureHuntException("Failed to find a spot for the lecturn");
         }
 
-        this.plugin.getLogger().info("Placing lecturn at (" + this.lecturnSpot.getX() + ", "
-                + this.lecturnSpot.getY() + ", " + this.lecturnSpot.getZ() + ")");
-
-        this.treasureSpot = findTreasureSpot(randomChestChunk(this.lecturnSpot.getLocation()), TREASURE_MIN_HEIGHT,
-                TREASURE_MAX_HEIGHT);
+        for (int attempt = 0; attempt < PLACE_ATTEMPTS; attempt++) {
+            Chunk chestChunk = randomChestChunk(this.lecturnSpot.getLocation());
+            this.treasureSpot = findTreasureSpot(chestChunk, TREASURE_MIN_HEIGHT, TREASURE_MAX_HEIGHT);
+            if (this.treasureSpot != null) {
+                this.plugin.getLogger().info("Placing treasure at (" + this.treasureSpot.getX() + ", "
+                        + this.treasureSpot.getY() + ", " + this.treasureSpot.getZ() + ")");
+                break;
+            }
+        }
         if (this.treasureSpot == null) {
             throw new TreasureHuntException("Failed to find a spot for the treasure");
         }
-
-        this.plugin.getLogger().info("Placing treasure at (" + this.treasureSpot.getX() + ", "
-                + this.treasureSpot.getY() + ", " + this.treasureSpot.getZ() + ")");
 
         this.treasure = selectTreasure();
 
@@ -139,56 +153,91 @@ public class TreasureHuntGame {
         promptBuilder.append("location where a chest is hidden in a Minecraft world.\n");
         promptBuilder.append("\n");
         promptBuilder.append("Details:\n");
-        promptBuilder.append("Biome: " + this.treasureSpot.getBiome().toString().replace('_', ' ') + "\n");
+        promptBuilder.append("Biome: " + biomeDescription(treasureSpot) + "\n");
         promptBuilder.append("X: ~" + xApprox + "\n");
         promptBuilder.append("Z: ~" + zApprox + "\n");
         promptBuilder.append("Height: " + heightDescription(this.treasureSpot.getY()) + "\n");
-        promptBuilder.append("Contents: " + this.treasure.getType().toString().replace('_', ' ') + "\n");
+        promptBuilder.append("Contents: " + this.treasure.getType().toString().toLowerCase().replace('_', ' ') + "\n");
         promptBuilder.append("\n");
         promptBuilder.append("Be concise. This should be no more than 3 sentences. Make sure to include the biome, ");
-        promptBuilder.append("coordinates (and that they are approximate), height, and contents. This message is broadcast ");
+        promptBuilder.append(
+                "coordinates (and that they are approximate), height, and contents. This message is broadcast ");
         promptBuilder.append("to all online players, so tailor it accordingly.\n");
         final String prompt = promptBuilder.toString();
 
-        Plugin plugin = this.plugin;
-        TreasureHuntGame game = this;
-
         BukkitScheduler scheduler = this.plugin.getServer().getScheduler();
-        scheduler.runTaskAsynchronously(this.plugin, new Runnable() {
-            public void run() {
-                try {
-                    String response = OpenAIClient.completion(prompt);
-                    game.setBookContents(response);
-                } catch (IOException e) {
-                    plugin.getLogger().warning("Failed to get response from OpenAI API");
-                    game.setState(TreasureHuntState.FAILED);
-                    return;
-                }
-
-                game.setState(TreasureHuntState.READY_TO_START);
+        scheduler.runTaskAsynchronously(this.plugin, () -> {
+            String response;
+            try {
+                response = OpenAIClient.completion(prompt);
+                this.plugin.getLogger().info("Flavor text: " + response.replace("\n", " "));
+            } catch (IOException e) {
+                this.plugin.getLogger().warning("Failed to get response from OpenAI API");
+                this.setState(TreasureHuntState.ERROR);
+                return;
             }
+
+            this.setBookContents(response);
+            this.setState(TreasureHuntState.READY_TO_START);
         });
     }
 
     private void startTreasureHunt() {
-        placeLecturn(this.lecturnSpot, bookContents);
-
         try {
+            placeLecturn(this.lecturnSpot, this.bookContents);
             placeTreasure(this.treasureSpot, treasure);
         } catch (TreasureHuntException e) {
-            this.plugin.getLogger().warning("Failed to place treasure: " + e.getMessage());
-            setState(TreasureHuntState.FAILED);
+            this.plugin.getLogger().warning(e.getMessage());
+            setState(TreasureHuntState.ERROR);
             return;
         }
 
         announce("TREASURE HUNT!", NamedTextColor.GREEN, Set.of(TextDecoration.BOLD));
-        String announcement = "You will find directions to buried treasure at ";
+        String announcement = "You will find directions to buried treasure resting on a lectern at ";
         announcement += "(" + this.lecturnSpot.getX() + ", " + this.lecturnSpot.getY() + ", "
                 + this.lecturnSpot.getZ() + ")";
-        announce(announcement, NamedTextColor.GREEN, Set.of());
-        announce(TREASURE_HUNT_DURATION / 1000 + " seconds to find the treasure!", NamedTextColor.RED, Set.of());
-
+        announce(announcement, NamedTextColor.GREEN);
+        announce("You have " + TREASURE_HUNT_MINUTES + " minutes to find the treasure!", NamedTextColor.RED,
+                Set.of());
         setState(TreasureHuntState.IN_PROGRESS);
+
+        scheduleTasks();
+    }
+
+    private void scheduleTasks() {
+        BukkitScheduler scheduler = this.plugin.getServer().getScheduler();
+        List<Integer> warningTimes = List.of(5, 3, 2, 1);
+
+        for (int warningTime : warningTimes) {
+            int warningTaskId = scheduler.scheduleSyncDelayedTask(this.plugin, () -> {
+                if (this.state != TreasureHuntState.IN_PROGRESS) {
+                    return;
+                }
+
+                String unit = warningTime == 1 ? "minute" : "minutes";
+                announce("You have " + warningTime + " " + unit + " to find the treasure!", NamedTextColor.RED);
+            }, (TREASURE_HUNT_MINUTES - warningTime) * 60 * TICKS_PER_SECOND);
+            scheduledTaskIds.add(warningTaskId);
+        }
+
+        int completionTaskId = scheduler.scheduleSyncDelayedTask(this.plugin, () -> {
+            if (this.state != TreasureHuntState.IN_PROGRESS) {
+                return;
+            }
+
+            setState(TreasureHuntState.COMPLETED);
+        }, TREASURE_HUNT_MINUTES * 60 * TICKS_PER_SECOND);
+        scheduledTaskIds.add(completionTaskId);
+    }
+
+    private void clearScheduledTasks() {
+        BukkitScheduler scheduler = this.plugin.getServer().getScheduler();
+
+        for (int taskId : scheduledTaskIds) {
+            scheduler.cancelTask(taskId);
+        }
+
+        scheduledTaskIds = new ArrayList<>();
     }
 
     private void placeTreasure(Block location, ItemStack treasure) throws TreasureHuntException {
@@ -205,19 +254,21 @@ public class TreasureHuntGame {
         chestState.getInventory().setItem(centerSlot, treasure);
     }
 
-    private void placeLecturn(Block location, String bookContents) {
+    private void placeLecturn(Block location, String bookContents) throws TreasureHuntException {
         // Place a lecturn at the given location
         BlockState originalState = location.getState();
         originalState.setType(Material.LECTERN);
-        originalState.update(true);
+        if (!originalState.update(true)) {
+            throw new TreasureHuntException("Failed to place the lecturn");
+        }
 
         // Put the book in the lecturn
         Lectern lecturnState = (Lectern) location.getState();
         lecturnState.getInventory().setItem(0, new ItemStack(Material.WRITTEN_BOOK));
+
         BookMeta bookMeta = (BookMeta) lecturnState.getInventory().getItem(0).getItemMeta();
         bookMeta.setTitle("Treasure Hunt");
         bookMeta.setAuthor("Dungeon Master");
-
         for (Component page : PageBuilder.breakIntoPages(bookContents)) {
             bookMeta.addPages(page);
         }
@@ -227,22 +278,23 @@ public class TreasureHuntGame {
 
     private void checkTreasure() {
         BlockState chestState = treasureSpot.getState();
-        if (treasureSpot.getType() != Material.CHEST) {
-            return;
+        if (treasureSpot.getType() == Material.CHEST) {
+            Chest chest = (Chest) chestState;
+            if (!chest.getInventory().isEmpty()) {
+                return;
+            }
+
+            chestState.setType(Material.AIR);
+            chestState.update(true);
         }
 
-        Chest chest = (Chest) chestState;
-        if (!chest.getInventory().isEmpty()) {
-            return;
-        }
-
-        chestState.setType(Material.AIR);
-        chestState.update(true);
-        announce("The treasure has been claimed!", NamedTextColor.GREEN, Set.of());
+        announce("The treasure has been claimed!", NamedTextColor.GREEN);
         setState(TreasureHuntState.COMPLETED);
     }
 
     private void deleteTreasure() {
+        clearScheduledTasks();
+
         BlockState lecturnState = lecturnSpot.getState();
         if (lecturnSpot.getType() == Material.LECTERN) {
             lecturnState.setType(Material.AIR);
@@ -253,7 +305,7 @@ public class TreasureHuntGame {
         if (treasureSpot.getType() == Material.CHEST) {
             chestState.setType(Material.AIR);
             chestState.update(true);
-            announce("The treasure has vanished!", NamedTextColor.RED, Set.of());
+            announce("The treasure has vanished!", NamedTextColor.RED);
         }
     }
 
@@ -266,17 +318,11 @@ public class TreasureHuntGame {
                 break;
             case IN_PROGRESS:
                 checkTreasure();
-
-                if (msInState() > TREASURE_HUNT_DURATION) {
-                    deleteTreasure();
-                    setState(TreasureHuntState.COMPLETED);
-                    break;
-                }
                 break;
             case COMPLETED:
                 deleteTreasure();
                 break;
-            case FAILED:
+            case ERROR:
                 deleteTreasure();
                 sender.sendMessage("Treasure hunt failed!");
                 break;
@@ -285,16 +331,25 @@ public class TreasureHuntGame {
 
     private String heightDescription(int y) {
         if (y < -40) {
-            return "Close to bedrock";
+            return "close to bedrock";
         }
         if (y < 0) {
-            return "Deepslate level";
+            return "deepslate level";
         }
         if (y < 63) {
-            return "Below ground";
+            return "below ground";
         }
 
-        return "Above ground";
+        return "above ground";
+    }
+
+    private String biomeDescription(Block block) {
+        Block blockBelow = block.getRelative(0, -1, 0);
+        if (blockBelow.getType().toString().contains("AMETHYST")) {
+            return "amethyst geode";
+        }
+
+        return block.getBiome().toString().toLowerCase().replace('_', ' ');
     }
 
     private ItemStack selectTreasure() {
@@ -380,6 +435,15 @@ public class TreasureHuntGame {
     /**
      * Announce a message to all players.
      */
+    @SuppressWarnings("unused")
+    private void announce(String message) {
+        announce(message, NamedTextColor.WHITE);
+    }
+
+    private void announce(String message, TextColor color) {
+        announce(message, color, Set.of());
+    }
+
     private void announce(String message, TextColor color, Set<TextDecoration> styles) {
         this.plugin.getLogger().info(message);
         Component component = Component.text(message, color, styles);
