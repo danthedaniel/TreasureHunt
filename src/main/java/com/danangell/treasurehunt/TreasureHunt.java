@@ -16,9 +16,14 @@ public class TreasureHunt extends JavaPlugin implements Listener {
         PluginManager pm = this.getServer().getPluginManager();
         pm.registerEvents(this, this);
 
+        // Add config value for OpenAI key
+        this.getConfig().addDefault("openai_key", "");
+        this.getConfig().options().copyDefaults(true);
+        this.saveConfig();
+
         // Set OpenAI key
         String apiKey = this.getConfig().getString("openai_key");
-        if (apiKey == null || apiKey.isEmpty()) {
+        if (!(apiKey instanceof String) || apiKey.isEmpty()) {
             throw new RuntimeException("OpenAI key is not set!");
         }
         OpenAIClient.setApiKey(apiKey);
@@ -27,11 +32,6 @@ public class TreasureHunt extends JavaPlugin implements Listener {
         TreasureHuntCommand command = new TreasureHuntCommand(this);
         this.getCommand("treasurehunt").setExecutor(command);
         this.getCommand("treasurehunt").setTabCompleter(command);
-
-        // Add config value for OpenAI key
-        this.getConfig().addDefault("openai_key", "");
-        this.getConfig().options().copyDefaults(true);
-        this.saveConfig();
 
         registerTickHandler();
     }

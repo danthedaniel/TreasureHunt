@@ -30,7 +30,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
 
 public class TreasureHuntGame {
     private static final int TICKS_PER_SECOND = 20;
-    private static final int TREASURE_HUNT_MINUTES = 10;
+    private static final int TREASURE_HUNT_MINUTES = 15;
 
     private static final int LECTERN_MAX_DIST = 5000;
     private static final int LECTERN_DEAD_ZONE = 1000;
