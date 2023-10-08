@@ -32,7 +32,7 @@ public class TreasureHunt extends JavaPlugin implements Listener {
         this.game = game;
     }
 
-    private void clearGame() {
+    public void clearGame() {
         this.game = null;
     }
 
@@ -71,8 +71,13 @@ public class TreasureHunt extends JavaPlugin implements Listener {
 
         this.game.onTick();
 
-        if (this.game.getState() == TreasureHuntState.COMPLETED) {
-            this.clearGame();
+        switch (this.game.getState()) {
+            case COMPLETED:
+            case FAILED:
+                this.clearGame();
+                break;
+            default:
+                break;
         }
     }
 }

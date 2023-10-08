@@ -10,6 +10,7 @@ import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.bukkit.Chunk;
+import org.bukkit.ChunkSnapshot;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
@@ -17,8 +18,11 @@ import org.bukkit.block.Block;
 import org.bukkit.block.BlockState;
 import org.bukkit.block.Chest;
 import org.bukkit.block.Lectern;
+import org.bukkit.command.CommandSender;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BookMeta;
+import org.bukkit.plugin.Plugin;
+import org.bukkit.scheduler.BukkitScheduler;
 import org.jetbrains.annotations.Nullable;
 
 import net.kyori.adventure.text.format.TextDecoration;
@@ -64,13 +68,17 @@ public class TreasureHuntGame {
     private TreasureHuntState state;
     private Date stateEnteredOn;
 
+    private CommandSender sender;
     private TreasureHunt plugin;
     private World world;
     private ThreadLocalRandom random;
     private @Nullable Block lecturnSpot;
     private @Nullable Block treasureSpot;
+    private @Nullable ItemStack treasure;
+    private @Nullable String bookContents;
 
-    public TreasureHuntGame(TreasureHunt plugin, World world) {
+    public TreasureHuntGame(CommandSender sender, TreasureHunt plugin, World world) {
+        this.sender = sender;
         this.plugin = plugin;
         this.state = TreasureHuntState.NOT_STARTED;
         this.world = world;
@@ -81,9 +89,13 @@ public class TreasureHuntGame {
         return this.state;
     }
 
-    public void setState(TreasureHuntState state) {
+    public synchronized void setState(TreasureHuntState state) {
         this.state = state;
         this.stateEnteredOn = new Date();
+    }
+
+    private synchronized void setBookContents(String bookContents) {
+        this.bookContents = bookContents;
     }
 
     /**
@@ -116,37 +128,58 @@ public class TreasureHuntGame {
         this.plugin.getLogger().info("Placing treasure at (" + this.treasureSpot.getX() + ", "
                 + this.treasureSpot.getY() + ", " + this.treasureSpot.getZ() + ")");
 
-        ItemStack treasure = selectTreasure();
+        this.treasure = selectTreasure();
 
         int roundTo = 16;
         int xApprox = (this.treasureSpot.getX() / roundTo) * roundTo;
         int zApprox = (this.treasureSpot.getZ() / roundTo) * roundTo;
 
-        String prompt = "";
-        prompt += "Please give me flavor text for a treasure hunt describing a";
-        prompt += " location where a chest is hidden in a Minecraft world.\n";
-        prompt += "\n";
-        prompt += "Details:\n";
-        prompt += "Biome: " + this.treasureSpot.getBiome().toString().replace('_', ' ') + "\n";
-        prompt += "X: ~" + xApprox + "\n";
-        prompt += "Z: ~" + zApprox + "\n";
-        prompt += "Height: " + heightDescription(this.treasureSpot.getY()) + "\n";
-        prompt += "Contents: " + treasure.getType().toString().replace('_', ' ') + "\n";
-        prompt += "\n";
-        prompt += "Be concise. This should be no more than 3 sentences. Make sure to include the biome, ";
-        prompt += "coordinates (and that they are approximate), height, and contents. This message is broadcast ";
-        prompt += "to all online players, so tailor it accordingly.\n";
+        StringBuilder promptBuilder = new StringBuilder();
+        promptBuilder.append("Please give me flavor text for a treasure hunt describing a ");
+        promptBuilder.append("location where a chest is hidden in a Minecraft world.\n");
+        promptBuilder.append("\n");
+        promptBuilder.append("Details:\n");
+        promptBuilder.append("Biome: " + this.treasureSpot.getBiome().toString().replace('_', ' ') + "\n");
+        promptBuilder.append("X: ~" + xApprox + "\n");
+        promptBuilder.append("Z: ~" + zApprox + "\n");
+        promptBuilder.append("Height: " + heightDescription(this.treasureSpot.getY()) + "\n");
+        promptBuilder.append("Contents: " + this.treasure.getType().toString().replace('_', ' ') + "\n");
+        promptBuilder.append("\n");
+        promptBuilder.append("Be concise. This should be no more than 3 sentences. Make sure to include the biome, ");
+        promptBuilder.append("coordinates (and that they are approximate), height, and contents. This message is broadcast ");
+        promptBuilder.append("to all online players, so tailor it accordingly.\n");
+        final String prompt = promptBuilder.toString();
 
-        String response;
+        Plugin plugin = this.plugin;
+        TreasureHuntGame game = this;
+
+        BukkitScheduler scheduler = this.plugin.getServer().getScheduler();
+        scheduler.runTaskAsynchronously(this.plugin, new Runnable() {
+            public void run() {
+                try {
+                    String response = OpenAIClient.completion(prompt);
+                    game.setBookContents(response);
+                } catch (IOException e) {
+                    plugin.getLogger().warning("Failed to get response from OpenAI API");
+                    game.setState(TreasureHuntState.FAILED);
+                    return;
+                }
+
+                game.setState(TreasureHuntState.READY_TO_START);
+            }
+        });
+    }
+
+    private void startTreasureHunt() {
+        placeLecturn(this.lecturnSpot, bookContents);
+
         try {
-            response = OpenAIClient.completion(prompt);
-        } catch (IOException e) {
-            this.plugin.getLogger().warning("Failed to get response from OpenAI API");
-            throw new TreasureHuntException("Failed to get response from OpenAI API");
+            placeTreasure(this.treasureSpot, treasure);
+        } catch (TreasureHuntException e) {
+            this.plugin.getLogger().warning("Failed to place treasure: " + e.getMessage());
+            setState(TreasureHuntState.FAILED);
+            return;
         }
-
-        placeLecturn(this.lecturnSpot, response);
-        placeTreasure(this.treasureSpot, treasure);
 
         announce("TREASURE HUNT!", NamedTextColor.GREEN, Set.of(TextDecoration.BOLD));
         String announcement = "You will find directions to buried treasure at ";
@@ -228,6 +261,9 @@ public class TreasureHuntGame {
         switch (this.state) {
             case NOT_STARTED:
                 break;
+            case READY_TO_START:
+                startTreasureHunt();
+                break;
             case IN_PROGRESS:
                 checkTreasure();
 
@@ -239,6 +275,10 @@ public class TreasureHuntGame {
                 break;
             case COMPLETED:
                 deleteTreasure();
+                break;
+            case FAILED:
+                deleteTreasure();
+                sender.sendMessage("Treasure hunt failed!");
                 break;
         }
     }
@@ -293,7 +333,6 @@ public class TreasureHuntGame {
     }
 
     private Chunk randomChestChunk(Location lecternLocation) {
-        // Find a spot between 100 and 500 blocks away from the lectern
         int distanceRange = TREASURE_LECTERN_MAX_RADIUS - TREASURE_LECTERN_MIN_RADIUS;
         int x = random.nextInt(-distanceRange, distanceRange + 1);
         x += TREASURE_LECTERN_MIN_RADIUS * (x > 0 ? 1 : -1);
@@ -314,23 +353,23 @@ public class TreasureHuntGame {
      * @return Block with Material of AIR - or null if no spot was found.
      */
     private @Nullable Block findTreasureSpot(Chunk chunk, int yMin, int yMax) {
+        ChunkSnapshot chunkSnapshot = chunk.getChunkSnapshot();
+
         for (int x = 0; x < 16; x++) {
             for (int z = 0; z < 16; z++) {
                 for (int y = yMin; y < yMax; y++) {
-                    // Look for a solid block
-                    Block baseBlock = chunk.getBlock(x, y, z);
-                    Material baseMaterial = baseBlock.getType();
+                    Material baseMaterial = chunkSnapshot.getBlockType(x, y, z);
                     if (!baseMaterial.isSolid()) {
                         continue;
                     }
 
                     // Look for an air block above it
-                    Block chestBlock = chunk.getBlock(x, y + 1, z);
-                    if (chestBlock.getType() != Material.AIR) {
+                    Material chestSpotMaterial = chunkSnapshot.getBlockType(x, y + 1, z);
+                    if (chestSpotMaterial != Material.AIR) {
                         continue;
                     }
 
-                    return chestBlock;
+                    return chunk.getBlock(x, y + 1, z);
                 }
             }
         }

@@ -43,7 +43,7 @@ public class TreasureHuntCommand implements CommandExecutor, TabCompleter {
             }
 
             Server server = this.plugin.getServer();
-            TreasureHuntGame game = new TreasureHuntGame(this.plugin, server.getWorld("world"));
+            TreasureHuntGame game = new TreasureHuntGame(sender, this.plugin, server.getWorld("world"));
             this.plugin.setGame(game);
             try {
                 game.init();
