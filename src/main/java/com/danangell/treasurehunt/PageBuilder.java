@@ -8,6 +8,8 @@ import org.bukkit.map.MinecraftFont;
 import net.kyori.adventure.text.Component;
 
 public class PageBuilder {
+    private static final int MAX_LINES_PER_PAGE = 14;
+
     /**
      * Break a string into pages of 14 lines each.
      */
@@ -16,9 +18,9 @@ public class PageBuilder {
 
         List<Component> pages = new ArrayList<>();
 
-        // Turn lines into groups of 14 lines
-        for (int index = 0; index < lines.size(); index += 14) {
-            List<String> pageLines = lines.subList(index, Math.min(index + 14, lines.size()));
+        // Group lines into pages
+        for (int index = 0; index < lines.size(); index += MAX_LINES_PER_PAGE) {
+            List<String> pageLines = lines.subList(index, Math.min(index + MAX_LINES_PER_PAGE, lines.size()));
             pages.add(Component.text(String.join("\n", pageLines)));
         }
 
