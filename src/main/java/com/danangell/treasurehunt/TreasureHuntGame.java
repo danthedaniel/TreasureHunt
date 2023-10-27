@@ -144,9 +144,8 @@ public class TreasureHuntGame {
 
         this.treasure = selectTreasure();
 
-        int roundTo = 16;
-        int xApprox = (this.treasureSpot.getX() / roundTo) * roundTo;
-        int zApprox = (this.treasureSpot.getZ() / roundTo) * roundTo;
+        int xApprox = this.treasureSpot.getX() + this.random.nextInt(-8, 8);
+        int zApprox = this.treasureSpot.getZ() + this.random.nextInt(-8, 8);
 
         StringBuilder promptBuilder = new StringBuilder();
         promptBuilder.append("Please give me flavor text for a treasure hunt describing a ");
