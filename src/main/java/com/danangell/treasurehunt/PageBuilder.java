@@ -29,7 +29,7 @@ public class PageBuilder {
         // Note that the only flaw with using MinecraftFont is that it can't account for
         // some UTF-8 symbols, it will throw an IllegalArgumentException
         final MinecraftFont font = new MinecraftFont();
-        final int maxLineWidth = font.getWidth("LLLLLLLLLLLLLLLLLLL");
+        final int maxLineWidth = font.getWidth("LLLLLLLLLLLLLLLLLL");
 
         // Get all of our lines
         List<String> lines = new ArrayList<>();
@@ -39,6 +39,10 @@ public class PageBuilder {
 
             for (int index = 0; index < words.length; index++) {
                 String word = words[index];
+                if (font.getWidth(word) > maxLineWidth) {
+                    word = "<invalid>";
+                }
+
                 String test = (line + " " + word);
                 if (test.startsWith(" ")) {
                     test = test.substring(1);
