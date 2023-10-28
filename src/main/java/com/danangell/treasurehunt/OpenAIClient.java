@@ -35,9 +35,9 @@ public class OpenAIClient {
         messages.add(new Message("system", "You are a dungeon master narrator"));
         messages.add(new Message("user", prompt));
 
-        String jsonInputString = new Gson().toJson(new Request(MODEL_NAME, messages));
+        String requestBody = new Gson().toJson(new Request(MODEL_NAME, messages));
         try (OutputStreamWriter writer = new OutputStreamWriter(conn.getOutputStream())) {
-            writer.write(jsonInputString);
+            writer.write(requestBody);
         }
 
         String response = new String(conn.getInputStream().readAllBytes());
