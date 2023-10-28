@@ -118,7 +118,7 @@ public class TreasureHuntGame {
     public void init() throws TreasureHuntException {
         for (int attempt = 0; attempt < PLACE_ATTEMPTS; attempt++) {
             Chunk lecturnChunk = randomLecturnChunk();
-            this.lecturnSpot = findTreasureSpot(lecturnChunk, LECTERN_MIN_HEIGHT, LECTERN_MAX_HEIGHT);
+            this.lecturnSpot = findRestingSpot(lecturnChunk, LECTERN_MIN_HEIGHT, LECTERN_MAX_HEIGHT);
             if (this.lecturnSpot != null) {
                 this.plugin.getLogger().info("Placing lecturn at (" + this.lecturnSpot.getX() + ", "
                         + this.lecturnSpot.getY() + ", " + this.lecturnSpot.getZ() + ")");
@@ -131,7 +131,7 @@ public class TreasureHuntGame {
 
         for (int attempt = 0; attempt < PLACE_ATTEMPTS; attempt++) {
             Chunk chestChunk = randomChestChunk(this.lecturnSpot.getLocation());
-            this.treasureSpot = findTreasureSpot(chestChunk, TREASURE_MIN_HEIGHT, TREASURE_MAX_HEIGHT);
+            this.treasureSpot = findRestingSpot(chestChunk, TREASURE_MIN_HEIGHT, TREASURE_MAX_HEIGHT);
             if (this.treasureSpot != null) {
                 this.plugin.getLogger().info("Placing treasure at (" + this.treasureSpot.getX() + ", "
                         + this.treasureSpot.getY() + ", " + this.treasureSpot.getZ() + ")");
@@ -172,6 +172,7 @@ public class TreasureHuntGame {
                 this.plugin.getLogger().info("Flavor text: " + response.replace("\n", " "));
             } catch (IOException e) {
                 this.plugin.getLogger().warning("Failed to get response from OpenAI API");
+                sender.sendMessage("Failed to start treasure hunt: " + e.getMessage());
                 this.setState(TreasureHuntState.ERROR);
                 return;
             }
@@ -187,6 +188,7 @@ public class TreasureHuntGame {
             placeTreasure(this.treasureSpot, treasure);
         } catch (TreasureHuntException e) {
             this.plugin.getLogger().warning(e.getMessage());
+            sender.sendMessage("Failed to start treasure hunt: " + e.getMessage());
             setState(TreasureHuntState.ERROR);
             return;
         }
@@ -356,9 +358,9 @@ public class TreasureHuntGame {
     }
 
     /**
-     * Get a block at the given coordinates, loading the chunk if necessary.
+     * Get a chunk containing the given coordinates, loading it if necessary.
      */
-    private Block getBlock(int x, int y, int z) {
+    private Chunk getChunk(int x, int y, int z) {
         Block block = this.world.getBlockAt(x, y, z);
         Chunk chunk = block.getChunk();
 
@@ -366,7 +368,7 @@ public class TreasureHuntGame {
             chunk.load();
         }
 
-        return block;
+        return chunk;
     }
 
     /**
@@ -382,8 +384,7 @@ public class TreasureHuntGame {
 
         Location location = new Location(this.world, x, 0, z);
 
-        Block block = getBlock(location.getBlockX(), location.getBlockY(), location.getBlockZ());
-        return block.getChunk();
+        return getChunk(location.getBlockX(), location.getBlockY(), location.getBlockZ());
     }
 
     private Chunk randomChestChunk(Location lecternLocation) {
@@ -397,16 +398,15 @@ public class TreasureHuntGame {
         Location location = new Location(this.world, x, 0, z);
         location.add(lecternLocation);
 
-        Block block = getBlock(location.getBlockX(), location.getBlockY(), location.getBlockZ());
-        return block.getChunk();
+        return getChunk(location.getBlockX(), location.getBlockY(), location.getBlockZ());
     }
 
     /**
-     * Find a location suitable for placing a chest in.
+     * Find a location suitable for placing a block on.
      *
      * @return Block with Material of AIR - or null if no spot was found.
      */
-    private @Nullable Block findTreasureSpot(Chunk chunk, int yMin, int yMax) {
+    private @Nullable Block findRestingSpot(Chunk chunk, int yMin, int yMax) {
         ChunkSnapshot chunkSnapshot = chunk.getChunkSnapshot();
 
         for (int x = 0; x < 16; x++) {

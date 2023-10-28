@@ -36,11 +36,12 @@ public class TreasureHuntCommand implements CommandExecutor, TabCompleter {
         }
 
         if (args[0].equals("start")) {
-            sender.sendMessage("Starting a treasure hunt...");
             if (this.plugin.getGame() != null) {
                 sender.sendMessage("Treasure hunt already in progress!");
                 return true;
             }
+
+            sender.sendMessage("Starting a treasure hunt...");
 
             Server server = this.plugin.getServer();
             TreasureHuntGame game = new TreasureHuntGame(sender, this.plugin, server.getWorld("world"));
