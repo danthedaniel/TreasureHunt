@@ -9,9 +9,12 @@ import net.kyori.adventure.text.Component;
 
 public class PageBuilder {
     private static final int MAX_LINES_PER_PAGE = 14;
+    private static final int MAX_PAGES = 50;
 
     /**
      * Break a string into pages of 14 lines each.
+     *
+     * This will truncate to 50 pages.
      */
     public static List<Component> breakIntoPages(String bookContents) {
         List<String> lines = getLines(bookContents);
@@ -20,7 +23,15 @@ public class PageBuilder {
 
         // Group lines into pages
         for (int index = 0; index < lines.size(); index += MAX_LINES_PER_PAGE) {
+            if (pages.size() > MAX_PAGES) {
+                break;
+            }
+
             List<String> pageLines = lines.subList(index, Math.min(index + MAX_LINES_PER_PAGE, lines.size()));
+            if (pageLines.size() == 0) {
+                break;
+            }
+
             pages.add(Component.text(String.join("\n", pageLines)));
         }
 
