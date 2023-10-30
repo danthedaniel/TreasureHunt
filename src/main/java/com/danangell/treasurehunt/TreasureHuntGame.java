@@ -198,8 +198,7 @@ public class TreasureHuntGame {
         announcement += "(" + this.lecturnSpot.getX() + ", " + this.lecturnSpot.getY() + ", "
                 + this.lecturnSpot.getZ() + ")";
         announce(announcement, NamedTextColor.GREEN);
-        announce("You have " + TREASURE_HUNT_MINUTES + " minutes to find the treasure!", NamedTextColor.RED,
-                Set.of());
+        announce("You have " + TREASURE_HUNT_MINUTES + " minutes to find the treasure!", NamedTextColor.RED);
         setState(TreasureHuntState.IN_PROGRESS);
 
         scheduleTasks();
@@ -360,8 +359,8 @@ public class TreasureHuntGame {
     /**
      * Get a chunk containing the given coordinates, loading it if necessary.
      */
-    private Chunk getChunk(int x, int y, int z) {
-        Block block = this.world.getBlockAt(x, y, z);
+    private Chunk getChunk(Location location) {
+        Block block = this.world.getBlockAt(location);
         Chunk chunk = block.getChunk();
 
         if (!chunk.isLoaded()) {
@@ -384,7 +383,7 @@ public class TreasureHuntGame {
 
         Location location = new Location(this.world, x, 0, z);
 
-        return getChunk(location.getBlockX(), location.getBlockY(), location.getBlockZ());
+        return getChunk(location);
     }
 
     private Chunk randomChestChunk(Location lecternLocation) {
@@ -398,7 +397,7 @@ public class TreasureHuntGame {
         Location location = new Location(this.world, x, 0, z);
         location.add(lecternLocation);
 
-        return getChunk(location.getBlockX(), location.getBlockY(), location.getBlockZ());
+        return getChunk(location);
     }
 
     /**
