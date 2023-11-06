@@ -66,6 +66,10 @@ public class TreasureHuntGame {
             new ItemStack(Material.NETHERITE_LEGGINGS, 1),
             new ItemStack(Material.NETHERITE_BOOTS, 1));
 
+    private static final String BOOK_HINTS = "Hints:\n"
+            + "1. The treasure is always in a cave if it's below the ground\n"
+            + "2. The treasure is always within " + TREASURE_LECTERN_MAX_RADIUS + " blocks of the lecturn\n";
+
     private TreasureHuntState state;
     private Date stateEnteredOn;
 
@@ -270,6 +274,9 @@ public class TreasureHuntGame {
         bookMeta.setTitle("Treasure Hunt");
         bookMeta.setAuthor("Dungeon Master");
         for (Component page : PageBuilder.breakIntoPages(bookContents)) {
+            bookMeta.addPages(page);
+        }
+        for (Component page : PageBuilder.breakIntoPages(BOOK_HINTS)) {
             bookMeta.addPages(page);
         }
 
