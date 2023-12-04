@@ -189,7 +189,7 @@ public class TreasureHuntGame {
     private void startTreasureHunt() {
         try {
             placeLecturn(this.lecturnSpot, this.bookContents);
-            placeTreasure(this.treasureSpot, treasure);
+            placeTreasure(this.treasureSpot, this.treasure);
         } catch (TreasureHuntException e) {
             this.plugin.getLogger().warning(e.getMessage());
             sender.sendMessage("Failed to start treasure hunt: " + e.getMessage());
@@ -210,7 +210,7 @@ public class TreasureHuntGame {
 
     private void scheduleTasks() {
         BukkitScheduler scheduler = this.plugin.getServer().getScheduler();
-        List<Integer> warningTimes = List.of(5, 3, 2, 1);
+        List<Integer> warningTimes = List.of(5, 3, 2, 1); // minutes from end
 
         for (int warningTime : warningTimes) {
             int warningTaskId = scheduler.scheduleSyncDelayedTask(this.plugin, () -> {
@@ -362,7 +362,7 @@ public class TreasureHuntGame {
 
     private String biomeDescription(Block block) {
         Block blockBelow = block.getRelative(0, -1, 0);
-        if (blockBelow.getType().toString().contains("AMETHYST")) {
+        if (blockBelow.getType().toString().toUpperCase().contains("AMETHYST")) {
             return "amethyst geode";
         }
 
