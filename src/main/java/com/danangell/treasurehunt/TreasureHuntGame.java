@@ -159,7 +159,7 @@ public class TreasureHuntGame {
         promptBuilder.append("Biome: " + biomeDescription(treasureSpot) + "\n");
         promptBuilder.append("X: ~" + xApprox + "\n");
         promptBuilder.append("Z: ~" + zApprox + "\n");
-        promptBuilder.append("Height: " + heightDescription(this.treasureSpot.getY()) + "\n");
+        promptBuilder.append("Height: " + heightDescription(this.treasureSpot) + "\n");
         promptBuilder.append("Contents: " + this.treasure.getType().toString().toLowerCase().replace('_', ' ') + "\n");
         promptBuilder.append("\n");
         promptBuilder.append("Be concise. This should be no more than 3 sentences. Make sure to include the biome, ");
@@ -336,7 +336,8 @@ public class TreasureHuntGame {
         }
     }
 
-    private String heightDescription(int y) {
+    private String heightDescription(Block block) {
+        int y = block.getY();
         if (y < -40) {
             return "close to bedrock";
         }
@@ -347,7 +348,16 @@ public class TreasureHuntGame {
             return "below ground";
         }
 
-        return "above ground";
+        byte skyLight = block.getLightFromSky();
+        if (skyLight > 0) {
+            return "ground level";
+        }
+
+        if (y > 90) {
+            return "in a mountain";
+        } else {
+            return "in a hill";
+        }
     }
 
     private String biomeDescription(Block block) {
