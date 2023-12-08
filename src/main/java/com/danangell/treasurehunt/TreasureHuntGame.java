@@ -12,6 +12,7 @@ import org.bukkit.ChunkSnapshot;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
+import org.bukkit.block.Biome;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockState;
 import org.bukkit.block.Chest;
@@ -35,14 +36,14 @@ public class TreasureHuntGame {
     private static final int LECTERN_MAX_DIST = 5000;
     private static final int LECTERN_DEAD_ZONE = 1000;
     private static final int LECTERN_MIN_HEIGHT = 60;
-    private static final int LECTERN_MAX_HEIGHT = 128;
+    private static final int LECTERN_MAX_HEIGHT = 200;
 
     private static final int TREASURE_MIN_HEIGHT = -50;
     private static final int TREASURE_MAX_HEIGHT = 70;
     private static final int TREASURE_LECTERN_MIN_RADIUS = 200;
     private static final int TREASURE_LECTERN_MAX_RADIUS = 400;
 
-    private static final int PLACE_ATTEMPTS = 5;
+    private static final int PLACE_ATTEMPTS = 10;
 
     private static final List<ItemStack> TREASURE_ITEMS = List.of(
             new ItemStack(Material.ELYTRA, 1),
@@ -70,6 +71,11 @@ public class TreasureHuntGame {
             + "1. The treasure is always in a cave if it's below the ground\n"
             + "2. The treasure is always within " + TREASURE_LECTERN_MAX_RADIUS + " blocks of the lecturn\n";
 
+    private static final Set<Biome> CAVE_BIOMES = Set.of(
+            Biome.DRIPSTONE_CAVES,
+            Biome.LUSH_CAVES,
+            Biome.DEEP_DARK);
+
     private TreasureHuntState state;
     private Date stateEnteredOn;
 
@@ -90,6 +96,7 @@ public class TreasureHuntGame {
         this.sender = sender;
         this.plugin = plugin;
         this.state = TreasureHuntState.NOT_STARTED;
+        this.stateEnteredOn = new Date();
         this.world = world;
         this.random = ThreadLocalRandom.current();
     }
@@ -122,7 +129,7 @@ public class TreasureHuntGame {
     public void init() throws TreasureHuntException {
         for (int attempt = 0; attempt < PLACE_ATTEMPTS; attempt++) {
             Chunk lecturnChunk = randomLecturnChunk();
-            this.lecturnSpot = findRestingSpot(lecturnChunk, LECTERN_MIN_HEIGHT, LECTERN_MAX_HEIGHT);
+            this.lecturnSpot = findLecturnSpot(lecturnChunk, LECTERN_MIN_HEIGHT, LECTERN_MAX_HEIGHT);
             if (this.lecturnSpot != null) {
                 this.plugin.getLogger().info("Placing lecturn at (" + this.lecturnSpot.getX() + ", "
                         + this.lecturnSpot.getY() + ", " + this.lecturnSpot.getZ() + ")");
@@ -135,7 +142,7 @@ public class TreasureHuntGame {
 
         for (int attempt = 0; attempt < PLACE_ATTEMPTS; attempt++) {
             Chunk chestChunk = randomChestChunk(this.lecturnSpot.getLocation());
-            this.treasureSpot = findRestingSpot(chestChunk, TREASURE_MIN_HEIGHT, TREASURE_MAX_HEIGHT);
+            this.treasureSpot = findChestSpot(chestChunk, TREASURE_MIN_HEIGHT, TREASURE_MAX_HEIGHT);
             if (this.treasureSpot != null) {
                 this.plugin.getLogger().info("Placing treasure at (" + this.treasureSpot.getX() + ", "
                         + this.treasureSpot.getY() + ", " + this.treasureSpot.getZ() + ")");
@@ -156,7 +163,17 @@ public class TreasureHuntGame {
         promptBuilder.append("location where a chest is hidden in a Minecraft world.\n");
         promptBuilder.append("\n");
         promptBuilder.append("Details:\n");
-        promptBuilder.append("Biome: " + biomeDescription(treasureSpot) + "\n");
+
+        Block underChest = treasureSpot.getRelative(0, -1, 0);
+        String surfaceDescription = surfaceDescription(underChest);
+        String biomeDescription = biomeDescription(underChest);
+        if (surfaceDescription != biomeDescription) {
+            promptBuilder.append("Surface biome: " + surfaceDescription + "\n");
+            promptBuilder.append("Biome at chest: " + biomeDescription + "\n");
+        } else {
+            promptBuilder.append("Biome: " + biomeDescription + "\n");
+        }
+
         promptBuilder.append("X: ~" + xApprox + "\n");
         promptBuilder.append("Z: ~" + zApprox + "\n");
         promptBuilder.append("Height: " + heightDescription(this.treasureSpot) + "\n");
@@ -361,12 +378,21 @@ public class TreasureHuntGame {
     }
 
     private String biomeDescription(Block block) {
-        Block blockBelow = block.getRelative(0, -1, 0);
-        if (blockBelow.getType().toString().toUpperCase().contains("AMETHYST")) {
-            return "amethyst geode";
+        if (block.getType().toString().toUpperCase().contains("AMETHYST")) {
+            return "an amethyst geode";
         }
 
-        return block.getBiome().toString().toLowerCase().replace('_', ' ');
+        Biome biome = block.getBiome();
+        if (biome == Biome.DEEP_DARK) {
+            return "the Deep Dark";
+        }
+
+        return biome.toString().toLowerCase().replace('_', ' ');
+    }
+
+    private String surfaceDescription(Block block) {
+        Block topBlock = new Location(block.getWorld(), block.getX(), 319, block.getZ()).getBlock();
+        return topBlock.getBiome().toString().toLowerCase().replace('_', ' ');
     }
 
     private ItemStack selectTreasure() {
@@ -418,11 +444,11 @@ public class TreasureHuntGame {
     }
 
     /**
-     * Find a location suitable for placing a block on.
+     * Find a location suitable for placing a lecturn on.
      *
      * @return Block with Material of AIR - or null if no spot was found.
      */
-    private @Nullable Block findRestingSpot(Chunk chunk, int yMin, int yMax) {
+    private @Nullable Block findLecturnSpot(Chunk chunk, int yMin, int yMax) {
         ChunkSnapshot chunkSnapshot = chunk.getChunkSnapshot();
 
         for (int x = 0; x < 16; x++) {
@@ -436,6 +462,47 @@ public class TreasureHuntGame {
                     // Look for an air block above it
                     Material chestSpotMaterial = chunkSnapshot.getBlockType(x, y + 1, z);
                     if (chestSpotMaterial != Material.AIR) {
+                        continue;
+                    }
+
+                    // Make sure there's sky light to ensure the lecturn is not underground
+                    if (chunkSnapshot.getBlockSkyLight(x, z, y) == 0) {
+                        continue;
+                    }
+
+                    return chunk.getBlock(x, y + 1, z);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Find a location suitable for placing a chest on.
+     *
+     * @return Block with Material of AIR - or null if no spot was found.
+     */
+    private @Nullable Block findChestSpot(Chunk chunk, int yMin, int yMax) {
+        ChunkSnapshot chunkSnapshot = chunk.getChunkSnapshot(false, true, false);
+
+        for (int x = 0; x < 16; x++) {
+            for (int z = 0; z < 16; z++) {
+                for (int y = yMin; y < yMax; y++) {
+                    Material baseMaterial = chunkSnapshot.getBlockType(x, y, z);
+                    if (!baseMaterial.isSolid()) {
+                        continue;
+                    }
+
+                    // Look for an air block above it
+                    Material chestSpotMaterial = chunkSnapshot.getBlockType(x, y + 1, z);
+                    if (chestSpotMaterial != Material.AIR) {
+                        continue;
+                    }
+
+                    boolean isCaveBiome = CAVE_BIOMES.contains(chunkSnapshot.getBiome(x, y, z));
+                    boolean isAmethystGeode = baseMaterial.toString().toUpperCase().contains("AMETHYST");
+                    if (!(isCaveBiome || isAmethystGeode)) {
                         continue;
                     }
 
