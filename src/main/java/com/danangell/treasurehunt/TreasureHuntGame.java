@@ -6,7 +6,10 @@ import java.util.Date;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Consumer;
 
+import org.apache.commons.lang3.tuple.Pair;
+import org.apache.commons.lang3.tuple.Triple;
 import org.bukkit.Chunk;
 import org.bukkit.ChunkSnapshot;
 import org.bukkit.Location;
@@ -18,9 +21,12 @@ import org.bukkit.block.BlockState;
 import org.bukkit.block.Chest;
 import org.bukkit.block.Lectern;
 import org.bukkit.command.CommandSender;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BookMeta;
+import org.bukkit.inventory.meta.EnchantmentStorageMeta;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.scheduler.BukkitScheduler;
 import org.jetbrains.annotations.Nullable;
 
@@ -45,27 +51,41 @@ public class TreasureHuntGame {
 
     private static final int PLACE_ATTEMPTS = 10;
 
-    private static final List<ItemStack> TREASURE_ITEMS = List.of(
-            new ItemStack(Material.ELYTRA, 1),
-            new ItemStack(Material.ELYTRA, 1),
-            new ItemStack(Material.ELYTRA, 1),
-            new ItemStack(Material.ELYTRA, 1),
-            new ItemStack(Material.ELYTRA, 1),
-            new ItemStack(Material.ELYTRA, 1),
-            new ItemStack(Material.ELYTRA, 1),
-            new ItemStack(Material.ELYTRA, 1),
-            new ItemStack(Material.ELYTRA, 1),
-            new ItemStack(Material.ELYTRA, 1),
-            new ItemStack(Material.NETHERITE_INGOT, 1),
-            new ItemStack(Material.NETHERITE_SWORD, 1),
-            new ItemStack(Material.NETHERITE_PICKAXE, 1),
-            new ItemStack(Material.NETHERITE_AXE, 1),
-            new ItemStack(Material.NETHERITE_SHOVEL, 1),
-            new ItemStack(Material.NETHERITE_HOE, 1),
-            new ItemStack(Material.NETHERITE_HELMET, 1),
-            new ItemStack(Material.NETHERITE_CHESTPLATE, 1),
-            new ItemStack(Material.NETHERITE_LEGGINGS, 1),
-            new ItemStack(Material.NETHERITE_BOOTS, 1));
+    private static final Consumer<ItemStack> NO_OP_CONSUMER = (ItemStack item) -> {};
+    private static final Consumer<ItemStack> enchantmentConsumer(Enchantment enchantment, int level) {
+        return (ItemStack item) -> {
+            ItemMeta itemMeta = item.getItemMeta();
+            
+            if (itemMeta instanceof EnchantmentStorageMeta) {
+                EnchantmentStorageMeta enchantmentStorageMeta = (EnchantmentStorageMeta) itemMeta;
+                enchantmentStorageMeta.addStoredEnchant(enchantment, level, true);
+                item.setItemMeta(itemMeta);
+            }
+        };
+    }
+
+    private static final List<Triple<String, ItemStack, Consumer<ItemStack>>> TREASURE_ITEMS = List.of(
+            Triple.of("Elytra", new ItemStack(Material.ELYTRA, 1), NO_OP_CONSUMER),
+            Triple.of("Elytra", new ItemStack(Material.ELYTRA, 1), NO_OP_CONSUMER),
+            Triple.of("Elytra", new ItemStack(Material.ELYTRA, 1), NO_OP_CONSUMER),
+            Triple.of("Elytra", new ItemStack(Material.ELYTRA, 1), NO_OP_CONSUMER),
+            Triple.of("Elytra", new ItemStack(Material.ELYTRA, 1), NO_OP_CONSUMER),
+            Triple.of("Elytra", new ItemStack(Material.ELYTRA, 1), NO_OP_CONSUMER),
+            Triple.of("Elytra", new ItemStack(Material.ELYTRA, 1), NO_OP_CONSUMER),
+            Triple.of("Elytra", new ItemStack(Material.ELYTRA, 1), NO_OP_CONSUMER),
+            Triple.of("Elytra", new ItemStack(Material.ELYTRA, 1), NO_OP_CONSUMER),
+            Triple.of("Elytra", new ItemStack(Material.ELYTRA, 1), NO_OP_CONSUMER),
+            Triple.of("Swift Sneak Level 1 Book", new ItemStack(Material.ENCHANTED_BOOK, 1), enchantmentConsumer(Enchantment.SWIFT_SNEAK, 1)),
+            Triple.of("Swift Sneak Level 2 Book", new ItemStack(Material.ENCHANTED_BOOK, 1), enchantmentConsumer(Enchantment.SWIFT_SNEAK, 2)),
+            Triple.of("Swift Sneak Level 3 Book", new ItemStack(Material.ENCHANTED_BOOK, 1), enchantmentConsumer(Enchantment.SWIFT_SNEAK, 3)),
+            Triple.of("Swift Sneak Level 4 Book", new ItemStack(Material.ENCHANTED_BOOK, 1), enchantmentConsumer(Enchantment.SWIFT_SNEAK, 4)),
+            Triple.of("Swift Sneak Level 5 Book", new ItemStack(Material.ENCHANTED_BOOK, 1), enchantmentConsumer(Enchantment.SWIFT_SNEAK, 5)),
+            Triple.of("Pigstep Music Disc", new ItemStack(Material.MUSIC_DISC_PIGSTEP, 1), NO_OP_CONSUMER),
+            Triple.of("Relic Music Disc", new ItemStack(Material.MUSIC_DISC_RELIC, 1), NO_OP_CONSUMER),
+            Triple.of("Netherite Ingot", new ItemStack(Material.NETHERITE_INGOT, 1), NO_OP_CONSUMER),
+            Triple.of("Netherite Ingot", new ItemStack(Material.NETHERITE_INGOT, 1), NO_OP_CONSUMER),
+            Triple.of("Netherite Ingot", new ItemStack(Material.NETHERITE_INGOT, 1), NO_OP_CONSUMER),
+            Triple.of("Netherite Ingot", new ItemStack(Material.NETHERITE_INGOT, 1), NO_OP_CONSUMER));
 
     private static final String BOOK_HINTS = "Hints:\n"
             + "1. The treasure is always in a cave if it's below the ground\n"
@@ -153,7 +173,8 @@ public class TreasureHuntGame {
             throw new TreasureHuntException("Failed to find a spot for the treasure");
         }
 
-        this.treasure = selectTreasure();
+        Pair<String, ItemStack> treasureEntry = selectTreasure();
+        this.treasure = treasureEntry.getRight();
 
         int xApprox = this.treasureSpot.getX() + this.random.nextInt(-8, 8);
         int zApprox = this.treasureSpot.getZ() + this.random.nextInt(-8, 8);
@@ -177,7 +198,7 @@ public class TreasureHuntGame {
         promptBuilder.append("X: ~" + xApprox + "\n");
         promptBuilder.append("Z: ~" + zApprox + "\n");
         promptBuilder.append("Height: " + heightDescription(this.treasureSpot) + "\n");
-        promptBuilder.append("Contents: " + this.treasure.getType().toString().toLowerCase().replace('_', ' ') + "\n");
+        promptBuilder.append("Contents: " + treasureEntry.getLeft() + "\n");
         promptBuilder.append("\n");
         promptBuilder.append("Be concise. This should be no more than 3 sentences. Make sure to include the biome, ");
         promptBuilder.append(
@@ -194,6 +215,13 @@ public class TreasureHuntGame {
             } catch (IOException e) {
                 this.plugin.getLogger().warning("Failed to get response from OpenAI API");
                 sender.sendMessage("Failed to start treasure hunt: " + e.getMessage());
+                this.setState(TreasureHuntState.ERROR);
+                return;
+            }
+
+            if (response == null || response.trim().isEmpty()) {
+                this.plugin.getLogger().warning("OpenAI API returned empty response");
+                sender.sendMessage("Failed to start treasure hunt: OpenAI API returned null response");
                 this.setState(TreasureHuntState.ERROR);
                 return;
             }
@@ -391,12 +419,17 @@ public class TreasureHuntGame {
     }
 
     private String surfaceDescription(Block block) {
-        Block topBlock = new Location(block.getWorld(), block.getX(), 319, block.getZ()).getBlock();
+        Block topBlock = block.getRelative(0, 319 - block.getY(), 0);
         return topBlock.getBiome().toString().toLowerCase().replace('_', ' ');
     }
 
-    private ItemStack selectTreasure() {
-        return TREASURE_ITEMS.get(random.nextInt(TREASURE_ITEMS.size()));
+    private Pair<String, ItemStack> selectTreasure() {
+        Triple<String, ItemStack, Consumer<ItemStack>> treasureEntry = TREASURE_ITEMS.get(random.nextInt(TREASURE_ITEMS.size()));
+        String name = treasureEntry.getLeft();
+        ItemStack treasure = treasureEntry.getMiddle().clone();
+        treasureEntry.getRight().accept(treasure);
+
+        return Pair.of(name, treasure);
     }
 
     /**
@@ -466,7 +499,7 @@ public class TreasureHuntGame {
                     }
 
                     // Make sure there's sky light to ensure the lecturn is not underground
-                    if (chunkSnapshot.getBlockSkyLight(x, z, y) == 0) {
+                    if (chunkSnapshot.getBlockSkyLight(x, y, z) == 0) {
                         continue;
                     }
 
