@@ -76,10 +76,11 @@ public class TreasureHuntGame {
             Triple.of("Elytra", new ItemStack(Material.ELYTRA, 1), NO_OP_CONSUMER),
             Triple.of("Elytra", new ItemStack(Material.ELYTRA, 1), NO_OP_CONSUMER),
             Triple.of("Swift Sneak Level 1 Book", new ItemStack(Material.ENCHANTED_BOOK, 1), enchantmentConsumer(Enchantment.SWIFT_SNEAK, 1)),
+            Triple.of("Swift Sneak Level 1 Book", new ItemStack(Material.ENCHANTED_BOOK, 1), enchantmentConsumer(Enchantment.SWIFT_SNEAK, 1)),
+            Triple.of("Swift Sneak Level 2 Book", new ItemStack(Material.ENCHANTED_BOOK, 1), enchantmentConsumer(Enchantment.SWIFT_SNEAK, 2)),
             Triple.of("Swift Sneak Level 2 Book", new ItemStack(Material.ENCHANTED_BOOK, 1), enchantmentConsumer(Enchantment.SWIFT_SNEAK, 2)),
             Triple.of("Swift Sneak Level 3 Book", new ItemStack(Material.ENCHANTED_BOOK, 1), enchantmentConsumer(Enchantment.SWIFT_SNEAK, 3)),
-            Triple.of("Swift Sneak Level 4 Book", new ItemStack(Material.ENCHANTED_BOOK, 1), enchantmentConsumer(Enchantment.SWIFT_SNEAK, 4)),
-            Triple.of("Swift Sneak Level 5 Book", new ItemStack(Material.ENCHANTED_BOOK, 1), enchantmentConsumer(Enchantment.SWIFT_SNEAK, 5)),
+            Triple.of("Swift Sneak Level 3 Book", new ItemStack(Material.ENCHANTED_BOOK, 1), enchantmentConsumer(Enchantment.SWIFT_SNEAK, 3)),
             Triple.of("Pigstep Music Disc", new ItemStack(Material.MUSIC_DISC_PIGSTEP, 1), NO_OP_CONSUMER),
             Triple.of("Relic Music Disc", new ItemStack(Material.MUSIC_DISC_RELIC, 1), NO_OP_CONSUMER),
             Triple.of("Netherite Ingot", new ItemStack(Material.NETHERITE_INGOT, 1), NO_OP_CONSUMER),
@@ -556,7 +557,7 @@ public class TreasureHuntGame {
     }
 
     private void announce(String message, TextColor color) {
-        announce(message, color, Set.of());
+        announce(message, color);
     }
 
     private void announce(String message, TextColor color, Set<TextDecoration> styles) {

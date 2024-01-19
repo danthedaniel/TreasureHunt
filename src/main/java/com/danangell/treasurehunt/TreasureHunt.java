@@ -58,7 +58,7 @@ public class TreasureHunt extends JavaPlugin implements Listener {
             throw new IllegalStateException("Tick handler is already registered!");
         }
 
-        long tickDelay = 10l;
+        long tickDelay = 10;
         BukkitScheduler scheduler = this.getServer().getScheduler();
         this.tickTaskId = scheduler.scheduleSyncRepeatingTask(this, () -> this.onTick(), tickDelay, tickDelay);
     }
