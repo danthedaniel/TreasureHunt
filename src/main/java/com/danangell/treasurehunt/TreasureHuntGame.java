@@ -89,7 +89,7 @@ public class TreasureHuntGame {
             Triple.of("Netherite Ingot", new ItemStack(Material.NETHERITE_INGOT, 1), NO_OP_CONSUMER));
 
     private static final String BOOK_HINTS = "Hints:\n"
-            + "1. The treasure is always in a cave if it's below the ground\n"
+            + "1. The treasure is always in a cave or geode if it's below the ground\n"
             + "2. The treasure is always within " + TREASURE_LECTERN_MAX_RADIUS + " blocks of the lecturn\n";
 
     private static final Set<Biome> CAVE_BIOMES = Set.of(
