@@ -557,7 +557,7 @@ public class TreasureHuntGame {
     }
 
     private void announce(String message, TextColor color) {
-        announce(message, color);
+        announce(message, color, Set.of());
     }
 
     private void announce(String message, TextColor color, Set<TextDecoration> styles) {
