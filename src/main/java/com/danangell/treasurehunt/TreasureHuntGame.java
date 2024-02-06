@@ -333,7 +333,7 @@ public class TreasureHuntGame {
         BlockState chestState = treasureSpot.getState();
         if (treasureSpot.getType() == Material.CHEST) {
             Chest chest = (Chest) chestState;
-            if (!chest.getInventory().isEmpty()) {
+            if (chest.getInventory().contains(treasure)) {
                 return;
             }
 
